@@ -17,8 +17,11 @@ class Task:
         uuid: Unique identifier for the task
         status: Current status of the task (processing, completed, failed)
         task_type: Type/category of the task
+        ref_user_id: id of the user who created the task
+        ref_request_id: id of the request associated with the task
         result: JSON data representing the result of the task
         file_name: Name of the file associated with the task
+        temp_file_name: Name of the file associated with the task in temporary storage
         url: URL of the file associated with the task
         audio_duration: Duration of the audio in seconds
         language: Language of the file associated with the task
@@ -34,8 +37,11 @@ class Task:
     uuid: str
     status: str
     task_type: str
+    ref_user_id: str | None = None
+    ref_request_id: str | None = None
     result: dict[str, Any] | None = None
     file_name: str | None = None
+    temp_file_name: str | None = None
     url: str | None = None
     audio_duration: float | None = None
     language: str | None = None
@@ -87,6 +93,22 @@ class Task:
         self.start_time = start_time
         self.updated_at = datetime.now(timezone.utc)
 
+    def mark_as_queued(self) -> None:
+        """
+        Mark the task as queued.
+        """
+        self.status = "queued"
+        self.updated_at = datetime.now(timezone.utc)
+
+    def is_queued(self) -> bool:
+        """
+        Check if task is currently queued.
+
+        Returns:
+            True if task status is 'queued', False otherwise
+        """
+        return self.status == "queued"
+    
     def is_processing(self) -> bool:
         """
         Check if task is currently processing.
@@ -125,8 +147,11 @@ class Task:
             "uuid": self.uuid,
             "status": self.status,
             "task_type": self.task_type,
+            "ref_user_id": self.ref_user_id,
+            "ref_request_id": self.ref_request_id,
             "result": self.result,
             "file_name": self.file_name,
+            "temp_file_name": self.temp_file_name,
             "url": self.url,
             "audio_duration": self.audio_duration,
             "language": self.language,

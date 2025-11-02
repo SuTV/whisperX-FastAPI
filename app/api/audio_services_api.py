@@ -16,6 +16,7 @@ from fastapi import (
     File,
     Query,
     UploadFile,
+    Form,
 )
 from pydantic import ValidationError as PydanticValidationError
 
@@ -79,6 +80,8 @@ async def transcribe(
     model_params: WhisperModelParams = Depends(),
     asr_options_params: ASROptions = Depends(),
     vad_options_params: VADOptions = Depends(),
+    ref_user_id: str | None = Form(default=None),
+    ref_request_id: str | None = Form(default=None),
     file: UploadFile = File(..., description="Audio/video file to transcribe"),
     repository: ITaskRepository = Depends(get_task_repository),
     file_service: FileService = Depends(get_file_service),
@@ -92,6 +95,8 @@ async def transcribe(
         model_params (WhisperModelParams): Whisper model parameters.
         asr_options_params (ASROptions): ASR options parameters.
         vad_options_params (VADOptions): VAD options parameters.
+        ref_user_id (str | None): ID of the user who created the task.
+        ref_request_id (str | None): ID of the request associated with the task.
         file (UploadFile): Uploaded audio file.
         repository (ITaskRepository): Task repository dependency.
         file_service (FileService): File service dependency.
@@ -114,8 +119,11 @@ async def transcribe(
     # Create domain task
     task = DomainTask(
         uuid=str(uuid4()),
-        status=TaskStatus.processing,
+        status=TaskStatus.queued,
+        ref_user_id=ref_user_id,
+        ref_request_id=ref_request_id,
         file_name=file.filename,
+        temp_file_name=temp_file,
         audio_duration=get_audio_duration(audio),
         language=model_params.language,
         task_type=TaskType.transcription,
@@ -150,6 +158,8 @@ async def transcribe(
 )
 def align(
     background_tasks: BackgroundTasks,
+    ref_user_id: str | None = Form(default=None),
+    ref_request_id: str | None = Form(default=None),
     transcript: UploadFile = File(
         ..., description="Whisper style transcript json file"
     ),
@@ -170,6 +180,8 @@ def align(
 
     Args:
         background_tasks (BackgroundTasks): Background tasks dependency.
+        ref_user_id (str | None): ID of the user who created the task.
+        ref_request_id (str | None): ID of the request associated with the task.
         transcript (UploadFile): Uploaded transcript file.
         file (UploadFile): Uploaded audio file.
         device (Device): Device for PyTorch inference.
@@ -220,8 +232,11 @@ def align(
     # Create domain task
     task = DomainTask(
         uuid=str(uuid4()),
-        status=TaskStatus.processing,
+        status=TaskStatus.queued,
+        ref_user_id=ref_user_id,
+        ref_request_id=ref_request_id,
         file_name=file.filename,
+        temp_file_name=temp_file,
         audio_duration=get_audio_duration(audio),
         language=transcript_data.language,
         task_type=TaskType.transcription_alignment,
@@ -253,6 +268,8 @@ def align(
 )
 async def diarize(
     background_tasks: BackgroundTasks,
+    ref_user_id: str | None = Form(default=None),
+    ref_request_id: str | None = Form(default=None),
     file: UploadFile = File(...),
     repository: ITaskRepository = Depends(get_task_repository),
     device: Device = Query(
@@ -268,6 +285,8 @@ async def diarize(
 
     Args:
         background_tasks (BackgroundTasks): Background tasks dependency.
+        ref_user_id (str | None): ID of the user who created the task.
+        ref_request_id (str | None): ID of the request associated with the task.
         file (UploadFile): Uploaded audio file.
         repository (ITaskRepository): Task repository dependency.
         device (Device): Device for PyTorch inference.
@@ -292,8 +311,11 @@ async def diarize(
     # Create domain task
     task = DomainTask(
         uuid=str(uuid4()),
-        status=TaskStatus.processing,
+        status=TaskStatus.queued,
+        ref_user_id=ref_user_id,
+        ref_request_id=ref_request_id,
         file_name=file.filename,
+        temp_file_name=temp_file,
         audio_duration=get_audio_duration(audio),
         task_type=TaskType.diarization,
         task_params={

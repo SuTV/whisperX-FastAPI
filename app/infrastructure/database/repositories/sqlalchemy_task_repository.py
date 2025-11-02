@@ -95,15 +95,27 @@ class SQLAlchemyTaskRepository:
             logger.error(f"Failed to get task by ID {identifier}: {str(e)}")
             return None
 
-    def get_all(self) -> list[DomainTask]:
+    def get_all(self, status: str | None = None, ref_user_id: str | None = None, ref_request_id: str | None = None) -> list[DomainTask]:
         """
         Get all tasks from the database.
+
+        Args:
+            status (str | None): Filter by task status
+            ref_user_id (str | None): Filter by reference user ID
+            ref_request_id (str | None): Filter by reference request ID
 
         Returns:
             list[DomainTask]: List of all Task entities
         """
         try:
-            orm_tasks = self.session.query(ORMTask).all()
+            orm_tasks = self.session.query(ORMTask)
+            if status is not None:
+                orm_tasks = orm_tasks.filter(ORMTask.status == status)
+            if ref_user_id is not None:
+                orm_tasks = orm_tasks.filter(ORMTask.ref_user_id == ref_user_id)
+            if ref_request_id is not None:
+                orm_tasks = orm_tasks.filter(ORMTask.ref_request_id == ref_request_id)
+            orm_tasks = orm_tasks.all()
             domain_tasks = [to_domain(orm_task) for orm_task in orm_tasks]
 
             logger.debug(f"Retrieved {len(domain_tasks)} tasks from database")
@@ -113,7 +125,7 @@ class SQLAlchemyTaskRepository:
             logger.error(f"Failed to get all tasks: {str(e)}")
             return []
 
-    def update(self, identifier: str, update_data: dict[str, Any]) -> None:
+    def update(self, identifier: str, update_data: dict[str, Any]) -> DomainTask | None:
         """
         Update a task by its UUID.
 
@@ -121,6 +133,9 @@ class SQLAlchemyTaskRepository:
             identifier: The UUID of the task to update
             update_data: Dictionary containing the attributes to update
                         along with their new values
+
+        Returns:
+            DomainTask | None: The Task entity if found, None otherwise
 
         Raises:
             ValueError: If the task is not found
@@ -142,6 +157,7 @@ class SQLAlchemyTaskRepository:
 
             self.session.commit()
             logger.info(f"Task updated successfully with UUID: {identifier}")
+            return to_domain(orm_task)
 
         except SQLAlchemyError as e:
             self.session.rollback()

@@ -294,6 +294,11 @@ def process_audio_common(
     repository: ITaskRepository = SQLAlchemyTaskRepository(session)
 
     try:
+        repository.update(
+            identifier=params.identifier,
+            update_data={"status": TaskStatus.processing},
+        )
+
         start_time = datetime.now()
         logger.info(
             "Starting speech-to-text processing for identifier: %s",

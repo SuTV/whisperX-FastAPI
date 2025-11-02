@@ -199,6 +199,15 @@ class TaskEnum(str, Enum):
     TRANSLATE = "translate"
 
 
+class TaskStatusEnum(str, Enum):
+    """Enum for task statuses."""
+
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class InterpolateMethod(str, Enum):
     """Enum for interpolation methods."""
 
@@ -396,6 +405,23 @@ class SpeechToTextProcessingParams(BaseModel):
     diarization_params: DiarizationParams
 
 
+class TaskParams(BaseModel):
+    """Model for task parameters."""
+
+    status: TaskStatusEnum | None = Field(
+        Query(
+            default=None,
+            description="Task status to filter by (queued, processing, completed, failed)",
+        )
+    )
+    ref_user_id: str | None = Field(
+        Query(None, description="ID of the user who created the task")
+    )
+    ref_request_id: str | None = Field(
+        Query(None, description="ID of the request associated with the task")
+    )
+
+
 class TaskType(str, Enum):
     """Enum for task types."""
 
@@ -409,6 +435,7 @@ class TaskType(str, Enum):
 class TaskStatus(str, Enum):
     """Enum for task status."""
 
+    queued = "queued"
     processing = "processing"
     completed = "completed"
     failed = "failed"

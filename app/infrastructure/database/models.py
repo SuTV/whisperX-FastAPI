@@ -22,8 +22,11 @@ class Task(Base):
     - id: Unique identifier for each task (Primary Key).
     - uuid: Universally unique identifier for each task.
     - status: Current status of the task.
+    - ref_user_id: id of the user who created the task.
+    - ref_request_id: id of the request associated with the task.
     - result: JSON data representing the result of the task.
     - file_name: Name of the file associated with the task.
+    - temp_file_name: Name of the temp file associated with the task.
     - task_type: Type/category of the task.
     - duration: Duration of the task execution.
     - error: Error message, if any, associated with the task.
@@ -44,11 +47,20 @@ class Task(Base):
         comment="Universally unique identifier for each task",
     )
     status: Mapped[str] = mapped_column(String, comment="Current status of the task")
+    ref_user_id: Mapped[str | None] = mapped_column(
+        String, nullable=True, comment="id of the user who created the task"
+    )
+    ref_request_id: Mapped[str | None] = mapped_column(
+        String, nullable=True, comment="id of the request associated with the task"
+    )
     result: Mapped[dict[str, Any] | None] = mapped_column(
         JSON, comment="JSON data representing the result of the task"
     )
     file_name: Mapped[str | None] = mapped_column(
         String, nullable=True, comment="Name of the file associated with the task"
+    )
+    temp_file_name: Mapped[str | None] = mapped_column(
+        String, nullable=True, comment="Name of the temp file associated with the task"
     )
     url: Mapped[str | None] = mapped_column(
         String, nullable=True, comment="URL of the file associated with the task"

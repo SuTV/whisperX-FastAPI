@@ -30,8 +30,11 @@ class TaskFactory(factory.Factory):
     uuid = factory.Sequence(lambda n: f"task-{n}")
     status = "pending"
     task_type = "transcription"
+    ref_user_id = None
+    ref_request_id = None
     result = None
     file_name = Faker("file_name", extension="mp3")
+    temp_file_name = Faker("temp_file_name", extension="mp3")
     url = None
     audio_duration = Faker("pyfloat", min_value=1.0, max_value=600.0, right_digits=2)
     language = "en"
@@ -43,6 +46,11 @@ class TaskFactory(factory.Factory):
     created_at = factory.LazyFunction(lambda: datetime.now(timezone.utc))
     updated_at = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 
+    @classmethod
+    def queued(cls, **kwargs: Any) -> Task:
+        """Create a task in queued status with start time."""
+        return cls(status="queued", start_time=datetime.now(timezone.utc), **kwargs)
+    
     @classmethod
     def processing(cls, **kwargs: Any) -> Task:
         """Create a task in processing status with start time."""

@@ -44,16 +44,21 @@ class ITaskRepository(Protocol):
         """
         ...
 
-    def get_all(self) -> list[Task]:
+    def get_all(self, status: str | None = None, ref_user_id: str | None = None, ref_request_id: str | None = None) -> list[Task]:
         """
-        Get all tasks from the repository.
+        Get all tasks from the repository. Filtered by: status, ref_user_id, ref_request_id.
+
+        Args:
+            status (str | None): Filter by task status
+            ref_user_id (str | None): Filter by reference user ID
+            ref_request_id (str | None): Filter by reference request ID
 
         Returns:
-            list[Task]: List of all Task entities
+            list[Task]: List of all Task entities by filters
         """
         ...
 
-    def update(self, identifier: str, update_data: dict[str, Any]) -> None:
+    def update(self, identifier: str, update_data: dict[str, Any]) -> Task | None:
         """
         Update a task by its UUID.
 
@@ -62,6 +67,9 @@ class ITaskRepository(Protocol):
             update_data: Dictionary containing the attributes to update
                         along with their new values
 
+        Returns:
+            Task | None: The Task entity if found, None otherwise
+        
         Raises:
             ValueError: If the task is not found
             Exception: If update fails

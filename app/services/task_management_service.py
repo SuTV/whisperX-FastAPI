@@ -58,15 +58,20 @@ class TaskManagementService:
 
         return task
 
-    def get_all_tasks(self) -> list[Task]:
+    def get_all_tasks(self, status: str | None = None, ref_user_id: str | None = None, ref_request_id: str | None = None) -> list[Task]:
         """
         Retrieve all tasks from the repository.
+
+        Args:
+            status (str | None): Filter by task status
+            ref_user_id (str | None): Filter by reference user ID
+            ref_request_id (str | None): Filter by reference request ID
 
         Returns:
             List of all task domain entities
         """
         logger.debug("Retrieving all tasks")
-        tasks = self.repository.get_all()
+        tasks = self.repository.get_all(status=status, ref_user_id=ref_user_id, ref_request_id=ref_request_id)
         logger.info("Retrieved %d tasks", len(tasks))
         return tasks
 
@@ -90,14 +95,24 @@ class TaskManagementService:
 
         return result
 
-    def update_task_status(self, identifier: str, update_data: dict[str, Any]) -> None:
+    def update_task_status(self, identifier: str, update_data: dict[str, Any]) -> Task | None:
         """
         Update task status and related information.
 
         Args:
             identifier: The UUID of the task to update
             update_data: Dictionary of fields to update
+
+        Returns:
+            The task domain entity if found, None otherwise
         """
         logger.debug("Updating task %s with data: %s", identifier, update_data.keys())
-        self.repository.update(identifier, update_data)
+        task = self.repository.update(identifier, update_data)
         logger.info("Task updated successfully: %s", identifier)
+
+        if task:
+            logger.debug("Task updated: %s", identifier)
+        else:
+            logger.debug("Task not updated: %s", identifier)
+
+        return task

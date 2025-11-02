@@ -19,9 +19,12 @@ from app.schemas import ResultTasks, TaskSimple
 def add_task_to_db(
     status: str,
     task_type: str,
+    ref_user_id: str | None = None,
+    ref_request_id: str | None = None,
     language: str | None = None,
     task_params: dict[str, Any] | None = None,
     file_name: str | None = None,
+    temp_file_name: str | None = None,
     url: str | None = None,
     audio_duration: float | None = None,
     start_time: datetime | None = None,
@@ -34,9 +37,12 @@ def add_task_to_db(
     Args:
         status (str): Status of the task.
         task_type (str): Type of the task.
+        ref_user_id (str, optional) : ID of the user who created the task. Defaults to None.
+        ref_request_id (str, optional): ID of the request associated with the task. Defaults to None.
         language (str, optional): Language of the task. Defaults to None.
         task_params (dict, optional): Parameters of the task. Defaults to None.
         file_name (str, optional): Name of the file associated with the task. Defaults to None.
+        temp_file_name (str, optional): Name of the file associated with the task in temporary storage. Defaults to None.
         url (str, optional): URL associated with the task. Defaults to None.
         audio_duration (float, optional): Duration of the audio file. Defaults to None.
         start_time (datetime, optional): Start time of the task. Defaults to None.
@@ -48,8 +54,11 @@ def add_task_to_db(
     """
     task = Task(
         status=status,
+        ref_user_id=ref_user_id,
+        ref_request_id=ref_request_id,
         language=language,
         file_name=file_name,
+        temp_file_name=temp_file_name,
         url=url,
         task_type=task_type,
         task_params=task_params,

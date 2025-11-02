@@ -71,6 +71,11 @@ def process_audio_task(
     repository: ITaskRepository = SQLAlchemyTaskRepository(session)
 
     try:
+        repository.update(
+            identifier=identifier,
+            update_data={"status": TaskStatus.processing},
+        )
+
         start_time = datetime.now()
         logger.info(f"Starting {task_type} task for identifier {identifier}")
 

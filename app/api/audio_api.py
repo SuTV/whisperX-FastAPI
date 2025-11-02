@@ -53,6 +53,8 @@ async def speech_to_text(
     diarize_params: DiarizationParams = Depends(),
     asr_options_params: ASROptions = Depends(),
     vad_options_params: VADOptions = Depends(),
+    ref_user_id: str | None = Form(default=None),
+    ref_request_id: str | None = Form(default=None),
     file: UploadFile = File(...),
     repository: ITaskRepository = Depends(get_task_repository),
     file_service: FileService = Depends(get_file_service),
@@ -67,6 +69,8 @@ async def speech_to_text(
         diarize_params (DiarizationParams): Diarization parameters.
         asr_options_params (ASROptions): ASR options parameters.
         vad_options_params (VADOptions): VAD options parameters.
+        ref_user_id (str | None): ID of the user who created the task.
+        ref_request_id (str | None): ID of the request associated with the task.
         file (UploadFile): Uploaded audio file.
         repository (ITaskRepository): Task repository dependency.
         file_service (FileService): File service dependency.
@@ -94,8 +98,11 @@ async def speech_to_text(
     # Create domain task
     task = DomainTask(
         uuid=str(uuid4()),
-        status=TaskStatus.processing,
+        status=TaskStatus.queued,
+        ref_user_id=ref_user_id,
+        ref_request_id=ref_request_id,
         file_name=file.filename,
+        temp_file_name=temp_file,
         audio_duration=audio_duration,
         language=model_params.language,
         task_type=TaskType.full_process,
@@ -136,6 +143,8 @@ async def speech_to_text_url(
     diarize_params: DiarizationParams = Depends(),
     asr_options_params: ASROptions = Depends(),
     vad_options_params: VADOptions = Depends(),
+    ref_user_id: str | None = Form(default=None),
+    ref_request_id: str | None = Form(default=None),
     url: str = Form(...),
     repository: ITaskRepository = Depends(get_task_repository),
     file_service: FileService = Depends(get_file_service),
@@ -150,6 +159,8 @@ async def speech_to_text_url(
         diarize_params (DiarizationParams): Diarization parameters.
         asr_options_params (ASROptions): ASR options parameters.
         vad_options_params (VADOptions): VAD options parameters.
+        ref_user_id (str | None): ID of the user who created the task.
+        ref_request_id (str | None): ID of the request associated with the task.
         url (str): URL of the audio file.
         repository (ITaskRepository): Task repository dependency.
         file_service (FileService): File service dependency.
@@ -173,8 +184,11 @@ async def speech_to_text_url(
     # Create domain task
     task = DomainTask(
         uuid=str(uuid4()),
-        status=TaskStatus.processing,
+        status=TaskStatus.queued,
+        ref_user_id=ref_user_id,
+        ref_request_id=ref_request_id,
         file_name=filename,
+        temp_file_name=temp_audio_file,
         audio_duration=get_audio_duration(audio),
         language=model_params.language,
         task_type=TaskType.full_process,
