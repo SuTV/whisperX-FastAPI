@@ -12,6 +12,8 @@
 | `result` | JSON data representing the result of the task | JSON | True | None | False |
 | `file_name` | Name of the file associated with the task | VARCHAR | True | None | False |
 | `temp_file_name` | Name of the temp file associated with the task | VARCHAR | True | None | False |
+| `transcript_temp_file_name` | Name of the transcript temp file associated with the task | VARCHAR | True | None | False |
+| `diarization_temp_file_name` | Name of the diarization temp file associated with the task | VARCHAR | True | None | False |
 | `url` | URL of the file associated with the task | VARCHAR | True | None | False |
 | `audio_duration` | Duration of the audio in seconds | FLOAT | True | None | False |
 | `language` | Language of the file associated with the task | VARCHAR | True | None | False |

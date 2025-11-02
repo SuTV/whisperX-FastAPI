@@ -35,6 +35,8 @@ class TaskFactory(factory.Factory):
     result = None
     file_name = Faker("file_name", extension="mp3")
     temp_file_name = Faker("temp_file_name", extension="mp3")
+    transcript_temp_file_name = Faker("transcript_temp_file_name", extension="json")
+    diarization_temp_file_name = Faker("diarization_temp_file_name", extension="json")
     url = None
     audio_duration = Faker("pyfloat", min_value=1.0, max_value=600.0, right_digits=2)
     language = "en"

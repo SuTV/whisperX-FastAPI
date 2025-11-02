@@ -67,3 +67,17 @@ def save_temporary_file(temporary_file: Any, original_filename: str) -> str:
         dest.write(temporary_file.read())
 
     return temp_filename
+
+def delete_file(file_path: str) -> None:
+    """
+    Delete the file.
+
+    Args:
+        file_path (str): The path to the file.
+    """
+
+    if os.path.exists(file_path):
+        os.remove(file_path)
+        logger.info(f'File "{file_path}" deleted.')
+    else:
+        logger.info(f'File "{file_path}" does not exist.')

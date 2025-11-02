@@ -75,6 +75,18 @@ class TaskManagementService:
         logger.info("Retrieved %d tasks", len(tasks))
         return tasks
 
+    def get_expired_tasks(self) -> list[Task]:
+        """
+        Retrieve all expired tasks from the repository.
+
+        Returns:
+            List of expired task domain entities
+        """
+        logger.debug("Retrieving expired tasks")
+        tasks = self.repository.get_expired_tasks()
+        logger.info("Retrieved %d expired tasks", len(tasks))
+        return tasks
+
     def delete_task(self, identifier: str) -> bool:
         """
         Delete a task by its identifier.

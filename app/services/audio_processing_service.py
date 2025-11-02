@@ -1,7 +1,7 @@
 """This module provides services for processing audio tasks including transcription, diarization, alignment, and speaker assignment using WhisperX and FastAPI."""
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from whisperx import utils as whisperx_utils
@@ -73,7 +73,7 @@ def process_audio_task(
     try:
         repository.update(
             identifier=identifier,
-            update_data={"status": TaskStatus.processing},
+            update_data={"status": TaskStatus.processing, "updated_at": datetime.now(timezone.utc)},
         )
 
         start_time = datetime.now()

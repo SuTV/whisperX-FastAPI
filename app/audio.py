@@ -1,5 +1,6 @@
 """This module provides functions for processing audio files."""
 
+import os
 import subprocess
 from tempfile import NamedTemporaryFile
 from typing import Any
@@ -9,6 +10,7 @@ from whisperx import load_audio
 from whisperx.audio import SAMPLE_RATE
 
 from app.files import VIDEO_EXTENSIONS, check_file_extension
+from app.core.logging import logger
 
 
 def convert_video_to_audio(file: str) -> str:
@@ -66,3 +68,17 @@ def get_audio_duration(audio: np.ndarray[Any, np.dtype[np.float32]]) -> float:
         float: The duration of the audio file.
     """
     return len(audio) / SAMPLE_RATE  # type: ignore[no-any-return]
+
+def delete_audio_file(audio_file: str) -> None:
+    """
+    Delete the audio file.
+
+    Args:
+        audio_file (str): The path to the audio file.
+    """
+
+    if os.path.exists(audio_file):
+        os.remove(audio_file)
+        logger.info(f'File "{audio_file}" deleted.')
+    else:
+        logger.info(f'File "{audio_file}" does not exist.')

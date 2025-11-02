@@ -2,7 +2,9 @@
 
 from typing import Any
 from uuid import uuid4
+from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import asc
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -11,6 +13,9 @@ from app.core.logging import logger
 from app.domain.entities.task import Task as DomainTask
 from app.infrastructure.database.mappers.task_mapper import to_domain, to_orm
 from app.infrastructure.database.models import Task as ORMTask
+from app.core.config import Config
+
+EXPIRED_TASK_TIMEOUT = Config.EXPIRED_TASK_TIMEOUT
 
 
 class SQLAlchemyTaskRepository:
@@ -125,6 +130,35 @@ class SQLAlchemyTaskRepository:
             logger.error(f"Failed to get all tasks: {str(e)}")
             return []
 
+    def get_expired_tasks(self) -> list[DomainTask]:
+        """
+        Get all tasks that are in 'queued' or 'processing' status and have exceeded the expiration timeout.
+
+        Returns:
+            list[Task]: List of expired Task entities
+        """
+        try:
+            expiration_threshold = datetime.now(timezone.utc) - timedelta(minutes=EXPIRED_TASK_TIMEOUT)
+
+            orm_tasks = (
+                self.session.query(ORMTask)
+                .filter(
+                    ORMTask.status.in_(["queued", "processing"]),
+                    ORMTask.updated_at <= expiration_threshold,
+                )
+                .order_by(asc(ORMTask.updated_at))
+                .limit(1)
+                .all()
+            )
+            domain_tasks = [to_domain(orm_task) for orm_task in orm_tasks]
+
+            logger.debug(f"Retrieved {len(domain_tasks)} expired tasks from database")
+            return domain_tasks
+
+        except SQLAlchemyError as e:
+            logger.error(f"Failed to get expired tasks: {str(e)}")
+            return []
+    
     def update(self, identifier: str, update_data: dict[str, Any]) -> DomainTask | None:
         """
         Update a task by its UUID.

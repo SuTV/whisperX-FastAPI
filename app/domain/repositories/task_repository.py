@@ -58,6 +58,15 @@ class ITaskRepository(Protocol):
         """
         ...
 
+    def get_expired_tasks(self) -> list[Task]:
+        """
+        Get all tasks that are in 'queued' or 'processing' status and have exceeded the expiration timeout.
+
+        Returns:
+            list[Task]: List of expired Task entities
+        """
+        ...
+
     def update(self, identifier: str, update_data: dict[str, Any]) -> Task | None:
         """
         Update a task by its UUID.

@@ -22,6 +22,11 @@ def set_container(container: Container) -> None:
     global _container
     _container = container
 
+def get_container() -> Container:
+    """Get the global container instance."""
+    if _container is None:
+        raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
+    return _container
 
 def get_task_repository() -> Generator[ITaskRepository, None, None]:
     """

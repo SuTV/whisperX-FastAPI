@@ -27,6 +27,8 @@ class Task(Base):
     - result: JSON data representing the result of the task.
     - file_name: Name of the file associated with the task.
     - temp_file_name: Name of the temp file associated with the task.
+    - transcript_temp_file_name: Name of the transcript temp file associated with the task.
+    - diarization_temp_file_name: Name of the diarization temp file associated with the task.
     - task_type: Type/category of the task.
     - duration: Duration of the task execution.
     - error: Error message, if any, associated with the task.
@@ -61,6 +63,12 @@ class Task(Base):
     )
     temp_file_name: Mapped[str | None] = mapped_column(
         String, nullable=True, comment="Name of the temp file associated with the task"
+    )
+    transcript_temp_file_name: Mapped[str | None] = mapped_column(
+        String, nullable=True, comment="Name of the transcript temp file associated with the task"
+    )
+    diarization_temp_file_name: Mapped[str | None] = mapped_column(
+        String, nullable=True, comment="Name of the diarization temp file associated with the task"
     )
     url: Mapped[str | None] = mapped_column(
         String, nullable=True, comment="URL of the file associated with the task"

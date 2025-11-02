@@ -1,7 +1,7 @@
 """This module provides services for transcribing, diarizing, and aligning audio using Whisper and other models."""
 
 import gc
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
@@ -296,7 +296,7 @@ def process_audio_common(
     try:
         repository.update(
             identifier=params.identifier,
-            update_data={"status": TaskStatus.processing},
+            update_data={"status": TaskStatus.processing, "updated_at": datetime.now(timezone.utc)},
         )
 
         start_time = datetime.now()

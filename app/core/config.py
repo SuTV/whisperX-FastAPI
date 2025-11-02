@@ -115,6 +115,10 @@ class Settings(BaseSettings):
         default=False,
         description="Development mode flag",
     )
+    EXPIRED_TASK_TIMEOUT: int = Field(
+        default=45,
+        description="Timeout in minutes to re-queue expired tasks",
+    )
 
     # Nested settings
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
@@ -153,6 +157,7 @@ class Config:
     DEVICE = _settings.whisper.DEVICE
     COMPUTE_TYPE = _settings.whisper.COMPUTE_TYPE
     ENVIRONMENT = _settings.ENVIRONMENT
+    EXPIRED_TASK_TIMEOUT = _settings.EXPIRED_TASK_TIMEOUT
     LOG_LEVEL = _settings.logging.LOG_LEVEL
     AUDIO_EXTENSIONS = _settings.whisper.AUDIO_EXTENSIONS
     VIDEO_EXTENSIONS = _settings.whisper.VIDEO_EXTENSIONS

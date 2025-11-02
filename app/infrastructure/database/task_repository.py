@@ -25,6 +25,8 @@ def add_task_to_db(
     task_params: dict[str, Any] | None = None,
     file_name: str | None = None,
     temp_file_name: str | None = None,
+    transcript_temp_file_name: str | None = None,
+    diarization_temp_file_name: str | None = None,
     url: str | None = None,
     audio_duration: float | None = None,
     start_time: datetime | None = None,
@@ -43,6 +45,8 @@ def add_task_to_db(
         task_params (dict, optional): Parameters of the task. Defaults to None.
         file_name (str, optional): Name of the file associated with the task. Defaults to None.
         temp_file_name (str, optional): Name of the file associated with the task in temporary storage. Defaults to None.
+        transcript_temp_file_name (str, optional): Name of the transcript file associated with the task in temporary storage. Defaults to None.
+        diarization_temp_file_name (str, optional): Name of the diarization file associated with the task in temporary storage. Defaults to None.
         url (str, optional): URL associated with the task. Defaults to None.
         audio_duration (float, optional): Duration of the audio file. Defaults to None.
         start_time (datetime, optional): Start time of the task. Defaults to None.
@@ -59,6 +63,8 @@ def add_task_to_db(
         language=language,
         file_name=file_name,
         temp_file_name=temp_file_name,
+        transcript_temp_file_name=transcript_temp_file_name,
+        diarization_temp_file_name=diarization_temp_file_name,
         url=url,
         task_type=task_type,
         task_params=task_params,

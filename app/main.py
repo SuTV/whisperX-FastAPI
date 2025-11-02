@@ -14,6 +14,7 @@ from dotenv import load_dotenv  # noqa: E402
 from fastapi import FastAPI, status  # noqa: E402
 from fastapi.responses import JSONResponse, RedirectResponse  # noqa: E402
 from sqlalchemy import text  # noqa: E402
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from app.api import service_router, stt_router, task_router  # noqa: E402
 from app.api.exception_handlers import (  # noqa: E402
@@ -33,6 +34,7 @@ from app.core.exceptions import (  # noqa: E402
 )
 from app.docs import generate_db_schema, save_openapi_json  # noqa: E402
 from app.infrastructure.database import Base, engine  # noqa: E402
+from app.services.background_scheduler_service import execute_expired_tasks
 
 # Load environment variables from .env
 load_dotenv()
@@ -63,6 +65,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     save_openapi_json(app)
     generate_db_schema(Base.metadata.tables.values())
+
+    # schedule periodic tasks
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(execute_expired_tasks, "interval", seconds = 10)
+    scheduler.start()
+
     yield
 
     # Clean up container on shutdown

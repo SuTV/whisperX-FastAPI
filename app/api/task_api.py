@@ -36,9 +36,9 @@ from app.services import (
 )
 from app.services.file_service import FileService
 from app.transcript import filter_aligned_transcription
-from app.audio import process_audio_file
+from app.audio import process_audio_file, delete_audio_file
+from app.files import delete_file
 from app.api.constants import (
-    JSON_EXTENSION,
     TASK_SCHEDULED_LOG_FORMAT,
 )
 
@@ -130,9 +130,26 @@ async def delete_task(
     Raises:
         TaskNotFoundError: If the task is not found.
     """
+    task = service.get_task(identifier)
+
+    if task is None:
+        logger.error("Task ID not found: %s", identifier)
+        raise TaskNotFoundError(identifier)
+    
     logger.info("Deleting task ID: %s", identifier)
     if service.delete_task(identifier):
         logger.info("Task deleted: ID %s", identifier)
+
+        if task.temp_file_name is not None:
+            # delete associated files if needed
+            delete_audio_file(task.temp_file_name)
+
+        if task.transcript_temp_file_name is not None:
+            delete_file(task.transcript_temp_file_name)
+
+        if task.diarization_temp_file_name is not None:
+            delete_file(task.diarization_temp_file_name)
+        
         return Response(identifier=identifier, message="Task deleted")
     else:
         logger.error("Task not found: ID %s", identifier)
@@ -143,23 +160,22 @@ async def delete_task(
 async def retry_task(
     background_tasks: BackgroundTasks,
     identifier: str,
-    transcript: Union[UploadFile, None] = File(default=None),
-    diarization: Union[UploadFile, None] = File(default=None),
     service: TaskManagementService = Depends(get_task_management_service),
     transcription_service: ITranscriptionService = Depends(get_transcription_service),
     alignment_service: IAlignmentService = Depends(get_alignment_service),
     diarization_service: IDiarizationService = Depends(get_diarization_service),
     speaker_service: ISpeakerAssignmentService = Depends(get_speaker_assignment_service),
-    file_service: FileService = Depends(get_file_service),
 ) -> Response:
     """
     Retry a specific task by its identifier.
 
     Args:
         identifier (str): The identifier of the task.
-        transcript (UploadFile): Uploaded aligned transcript file.
-        diarization (UploadFile): Uploaded diarization result file.
         service: Task management service dependency.
+        transcription_service: Transcription service dependency.
+        alignment_service: Alignment service dependency.
+        diarization_service: Diarization service dependency.
+        speaker_service: Speaker assignment service dependency.
 
     Returns:
         Response: Confirmation message of task retrying.
@@ -170,148 +186,154 @@ async def retry_task(
     logger.info("Retrying task ID: %s", identifier)
     task = service.update_task_status(identifier, update_data={"status": TaskStatus.queued})
 
-    if task is not None and task.temp_file_name is not None:
-        if task.task_params and "vad_options" in task.task_params:
-            vad_options_params = VADOptions(**task.task_params["vad_options"])
-        if task.task_params and "asr_options" in task.task_params:
-            asr_options_params = ASROptions(**task.task_params["asr_options"])
-        if task.task_params:
-            model_params = WhisperModelParams(**{k: v for k, v in task.task_params.items() if k in WhisperModelParams.__fields__})
-        if task.task_params:
-            align_params = AlignmentParams(**{k: v for k, v in task.task_params.items() if k in AlignmentParams.__fields__})
-        if task.task_params:
-            diarize_params = DiarizationParams(**{k: v for k, v in task.task_params.items() if k in DiarizationParams.__fields__})
-        
-        if task.task_type == TaskType.full_process:
-            audio_params = SpeechToTextProcessingParams(
-                audio=process_audio_file(task.temp_file_name),
+    if task is not None:
+        try:
+            if task.task_params and "vad_options" in task.task_params:
+                vad_options_params = VADOptions(**task.task_params["vad_options"])
+            if task.task_params and "asr_options" in task.task_params:
+                asr_options_params = ASROptions(**task.task_params["asr_options"])
+            if task.task_params:
+                model_params = WhisperModelParams(**{k: v for k, v in task.task_params.items() if k in WhisperModelParams.__fields__})
+            if task.task_params:
+                align_params = AlignmentParams(**{k: v for k, v in task.task_params.items() if k in AlignmentParams.__fields__})
+            if task.task_params:
+                diarize_params = DiarizationParams(**{k: v for k, v in task.task_params.items() if k in DiarizationParams.__fields__})
+            
+            if task.task_type == TaskType.full_process:
+                if task.temp_file_name is not None:
+                    audio_params = SpeechToTextProcessingParams(
+                        audio=process_audio_file(task.temp_file_name),
+                        identifier=identifier,
+                        vad_options=vad_options_params,
+                        asr_options=asr_options_params,
+                        whisper_model_params=model_params,
+                        alignment_params=align_params,
+                        diarization_params=diarize_params,
+                    )
+                    background_tasks.add_task(process_audio_common, audio_params)
+                    logger.info(TASK_SCHEDULED_LOG_FORMAT, identifier)
+                else:
+                    logger.error(f"Temp file name is missing for task {identifier}. Cannot retry full process.")
+                    service.update_task_status(
+                        identifier=identifier,
+                        update_data={"status": TaskStatus.failed, "error": "Temp file name is missing."},
+                    )
+            elif task.task_type == TaskType.transcription:
+                if task.temp_file_name is not None:
+                    background_tasks.add_task(
+                        process_transcribe,
+                        process_audio_file(task.temp_file_name),
+                        identifier,
+                        model_params,
+                        asr_options_params,
+                        vad_options_params,
+                        transcription_service,
+                    )
+                    logger.info(TASK_SCHEDULED_LOG_FORMAT, identifier)
+                else:
+                    logger.error(f"Temp file name is missing for task {identifier}. Cannot retry transcription.")
+                    service.update_task_status(
+                        identifier=identifier,
+                        update_data={"status": TaskStatus.failed, "error": "Temp file name is missing."},
+                    )
+            elif task.task_type == TaskType.transcription_alignment:
+                if task.temp_file_name is not None and task.transcript_temp_file_name is not None:
+                    transcript_data = None
+                    # Read the content of the transcript file
+                    with open(task.transcript_temp_file_name, 'r') as transcript:
+                        transcript_data = Transcript(**json.loads(transcript.file.read()))
+                    
+                    if transcript_data is not None:
+                        device = "cpu"
+                        if task.task_params and "device" in task.task_params:
+                            device = task.task_params["device"]
+
+                        background_tasks.add_task(
+                            process_alignment,
+                            process_audio_file(task.temp_file_name),
+                            transcript_data.model_dump(),
+                            identifier,
+                            device,
+                            align_params,
+                            alignment_service,
+                        )
+                        logger.info(TASK_SCHEDULED_LOG_FORMAT, identifier)
+                    else:
+                        logger.error(f"Transcript data is invalid for task {identifier}. Cannot retry transcription alignment.")
+                        service.update_task_status(
+                            identifier=identifier,
+                            update_data={"status": TaskStatus.failed, "error": "Transcript data is invalid."},
+                        )
+                else:
+                    logger.error(f"Temp file name or transcript file name is missing for task {identifier}. Cannot retry transcription alignment.")
+                    service.update_task_status(
+                        identifier=identifier,
+                        update_data={"status": TaskStatus.failed, "error": "Temp file name or transcript file name is missing."},
+                    )
+            elif task.task_type == TaskType.diarization:
+                if task.temp_file_name is not None:
+                    device = "cpu"
+                    if task.task_params and "device" in task.task_params:
+                        device = task.task_params["device"]
+                    
+                    background_tasks.add_task(
+                        process_diarize,
+                        process_audio_file(task.temp_file_name),
+                        identifier,
+                        device,
+                        diarize_params,
+                        diarization_service,
+                    )
+                    logger.info(TASK_SCHEDULED_LOG_FORMAT, identifier)
+                else:
+                    logger.error(f"Temp file name is missing for task {identifier}. Cannot retry diarization.")
+                    service.update_task_status(
+                        identifier=identifier,
+                        update_data={"status": TaskStatus.failed, "error": "Temp file name is missing."},
+                    )
+            elif task.task_type == TaskType.combine_transcript_diarization:
+                if task.transcript_temp_file_name is not None and task.diarization_temp_file_name is not None:            
+                    transcript_data = None
+                    # Read the content of the transcript file
+                    with open(task.transcript_temp_file_name, 'r') as transcript:
+                        transcript_data = AlignedTranscription(**json.loads(transcript.file.read()))
+                        # removing words within each segment that have missing start, end, or score values
+                        transcript_data = filter_aligned_transcription(transcript_data)
+
+                    diarization_segments = None
+                    with open(task.diarization_temp_file_name, 'r') as diarization:
+                        # Map JSON to list of models
+                        diarization_segments = []
+                        for item in json.loads(diarization.file.read()):
+                            diarization_segments.append(DiarizationSegment(**item))
+                    
+                    if transcript_data is not None and diarization_segments is not None:
+                        background_tasks.add_task(
+                            process_speaker_assignment,
+                            pd.json_normalize([segment.model_dump() for segment in diarization_segments]),
+                            transcript_data.model_dump(),
+                            identifier,
+                            speaker_service,
+                        )
+                        logger.info(TASK_SCHEDULED_LOG_FORMAT, identifier)
+                    else:
+                        logger.error(f"Transcript data or diarization segments are invalid for task {identifier}. Cannot retry combine transcript and diarization.")
+                        service.update_task_status(
+                            identifier=identifier,
+                            update_data={"status": TaskStatus.failed, "error": "Transcript data or diarization segments are invalid."},
+                        )
+                else:
+                    logger.error(f"Transcript file name or diarization file name is missing for task {identifier}. Cannot retry combine transcript and diarization.")
+                    service.update_task_status(
+                        identifier=identifier,
+                        update_data={"status": TaskStatus.failed, "error": "Transcript file name or diarization file name is missing."},
+                    )
+        except Exception as e:
+            logger.error(f"Error retrying task {identifier}: {str(e)}")
+            service.update_task_status(
                 identifier=identifier,
-                vad_options=vad_options_params,
-                asr_options=asr_options_params,
-                whisper_model_params=model_params,
-                alignment_params=align_params,
-                diarization_params=diarize_params,
+                update_data={"status": TaskStatus.failed, "error": str(e)},
             )
-            background_tasks.add_task(process_audio_common, audio_params)
-            logger.info(TASK_SCHEDULED_LOG_FORMAT, identifier)
-        elif task.task_type == TaskType.transcription:
-            print(task.task_type)
-            background_tasks.add_task(
-                process_transcribe,
-                process_audio_file(task.temp_file_name),
-                identifier,
-                model_params,
-                asr_options_params,
-                vad_options_params,
-                transcription_service,
-            )
-            logger.info(TASK_SCHEDULED_LOG_FORMAT, identifier)
-        elif task.task_type == TaskType.transcription_alignment:
-            if transcript is None:
-                logger.error("Transcript file is required for alignment task retry: ID %s", identifier)
-                raise TaskNotFoundError(f"Transcript file is required for alignment task retry: ID {identifier}")
-            
-            # Validate transcript file
-            if transcript.filename is None:
-                raise FileValidationError(
-                    filename="unknown", reason="Transcript filename is missing"
-                )
-            
-            file_service.validate_file_extension(transcript.filename, {JSON_EXTENSION})
-
-            try:
-                # Read the content of the transcript file
-                transcript_data = Transcript(**json.loads(transcript.file.read()))
-            except PydanticValidationError as e:
-                logger.error("Invalid JSON content in transcript file: %s", str(e))
-                raise ValidationError(
-                    message=f"Invalid JSON content in transcript file: {str(e)}",
-                    code="INVALID_TRANSCRIPT_JSON",
-                    user_message="The transcript file contains invalid JSON.",
-                )
-            
-            device = "cpu"
-            if task.task_params and "device" in task.task_params:
-                device = task.task_params["device"]
-
-            background_tasks.add_task(
-                process_alignment,
-                process_audio_file(task.temp_file_name),
-                transcript_data.model_dump(),
-                identifier,
-                device,
-                align_params,
-                alignment_service,
-            )
-            logger.info(TASK_SCHEDULED_LOG_FORMAT, identifier)
-        elif task.task_type == TaskType.diarization:
-            device = "cpu"
-            if task.task_params and "device" in task.task_params:
-                device = task.task_params["device"]
-            
-            background_tasks.add_task(
-                process_diarize,
-                process_audio_file(task.temp_file_name),
-                identifier,
-                device,
-                diarize_params,
-                diarization_service,
-            )
-            logger.info(TASK_SCHEDULED_LOG_FORMAT, identifier)
-        elif task.task_type == TaskType.combine_transcript_diarization:
-            if transcript is None:
-                logger.error("Aligned transcript file is required for combine transcript - diarization task retry: ID %s", identifier)
-                raise TaskNotFoundError(f"Aligned transcript file is required for combine transcript - diarization task retry: ID {identifier}")
-            if diarization is None:
-                logger.error("Diarization result file is required for combine transcript - diarization task retry: ID %s", identifier)
-                raise TaskNotFoundError(f"Diarization result file is required for combine transcript - diarization task retry: ID {identifier}")
-            
-            # Validate files
-            if transcript.filename is None:
-                raise FileValidationError(
-                    filename="unknown", reason="Aligned transcript filename is missing"
-                )
-            if diarization.filename is None:
-                raise FileValidationError(
-                    filename="unknown", reason="Diarization result filename is missing"
-                )
-            
-            file_service.validate_file_extension(transcript.filename, {JSON_EXTENSION})
-            file_service.validate_file_extension(diarization.filename, {JSON_EXTENSION})
-
-            try:
-                # Read the content of the transcript file
-                transcript_data = AlignedTranscription(**json.loads(transcript.file.read()))
-                # removing words within each segment that have missing start, end, or score values
-                transcript_data = filter_aligned_transcription(transcript_data)
-            except PydanticValidationError as e:
-                logger.error("Invalid JSON content in aligned transcript file: %s", str(e))
-                raise ValidationError(
-                    message=f"Invalid JSON content in aligned transcript file: {str(e)}",
-                    code="INVALID_TRANSCRIPT_JSON",
-                    user_message="The aligned transcript file contains invalid JSON.",
-                )
-            try:
-                # Map JSON to list of models
-                diarization_segments = []
-                for item in json.loads(diarization.file.read()):
-                    diarization_segments.append(DiarizationSegment(**item))
-            except PydanticValidationError as e:
-                logger.error("Invalid JSON content in diarization result file: %s", str(e))
-                raise ValidationError(
-                    message=f"Invalid JSON content in diarization result file: {str(e)}",
-                    code="INVALID_DIARIZATION_JSON",
-                    user_message="The diarization result file contains invalid JSON.",
-                )
-            
-            background_tasks.add_task(
-                process_speaker_assignment,
-                pd.json_normalize([segment.model_dump() for segment in diarization_segments]),
-                transcript_data.model_dump(),
-                identifier,
-                speaker_service,
-            )
-            logger.info(TASK_SCHEDULED_LOG_FORMAT, identifier)
     
     logger.info("Task retried: ID %s", identifier)
     return Response(identifier=identifier, message="Task retried")

@@ -22,6 +22,8 @@ class Task:
         result: JSON data representing the result of the task
         file_name: Name of the file associated with the task
         temp_file_name: Name of the file associated with the task in temporary storage
+        transcript_temp_file_name: Name of the transcript file in temporary storage
+        diarization_temp_file_name: Name of the diarization file in temporary storage
         url: URL of the file associated with the task
         audio_duration: Duration of the audio in seconds
         language: Language of the file associated with the task
@@ -42,6 +44,8 @@ class Task:
     result: dict[str, Any] | None = None
     file_name: str | None = None
     temp_file_name: str | None = None
+    transcript_temp_file_name: str | None = None
+    diarization_temp_file_name: str | None = None
     url: str | None = None
     audio_duration: float | None = None
     language: str | None = None
@@ -152,6 +156,8 @@ class Task:
             "result": self.result,
             "file_name": self.file_name,
             "temp_file_name": self.temp_file_name,
+            "transcript_temp_file_name": self.transcript_temp_file_name,
+            "diarization_temp_file_name": self.diarization_temp_file_name,
             "url": self.url,
             "audio_duration": self.audio_duration,
             "language": self.language,

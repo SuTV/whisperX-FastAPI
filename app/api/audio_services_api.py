@@ -217,6 +217,8 @@ def align(
             code="INVALID_TRANSCRIPT_JSON",
             user_message="The transcript file contains invalid JSON.",
         )
+    
+    transcript_temp_file = file_service.save_upload(transcript)
 
     # Validate and save audio file
     if file.filename is None:
@@ -237,6 +239,7 @@ def align(
         ref_request_id=ref_request_id,
         file_name=file.filename,
         temp_file_name=temp_file,
+        transcript_temp_file_name=transcript_temp_file,
         audio_duration=get_audio_duration(audio),
         language=transcript_data.language,
         task_type=TaskType.transcription_alignment,
@@ -412,12 +415,17 @@ async def combine(
             code="INVALID_DIARIZATION_JSON",
             user_message="The diarization result file contains invalid JSON.",
         )
+    
+    transcript_temp_file = file_service.save_upload(aligned_transcript)
+    diarization_temp_file = file_service.save_upload(diarization_result)
 
     # Create domain task
     task = DomainTask(
         uuid=str(uuid4()),
         status=TaskStatus.processing,
         file_name=None,
+        transcript_temp_file_name=transcript_temp_file,
+        diarization_temp_file_name=diarization_temp_file,
         task_type=TaskType.combine_transcript_diarization,
         start_time=datetime.now(tz=timezone.utc),
     )
