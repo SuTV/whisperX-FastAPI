@@ -100,12 +100,12 @@ jobs:
       - name: Run tests with coverage
         run: uv run pytest --junitxml=pytest-report.xml --cov=app --cov-report=xml --cov-report=term --cov-fail-under=80
       - name: Upload test report
-        uses: actions/upload-artifact@2848b2cda0e5190984587ec6bb1f36730ca78d50
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: test-report-${{ matrix.python-version }}
           path: pytest-report.xml
       - name: Upload coverage report
-        uses: actions/upload-artifact@2848b2cda0e5190984587ec6bb1f36730ca78d50
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: coverage-report-${{ matrix.python-version }}
           path: coverage.xml
@@ -175,6 +175,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test]
     timeout-minutes: 30
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      WHISPER_MODEL: tiny
+      DEFAULT_LANG: en
+      DEVICE: cpu
+      COMPUTE_TYPE: int8
     permissions:
       contents: read
       pull-requests: write # Needed for PR failure comment
@@ -203,6 +209,66 @@ jobs:
           tags: whisperx-fastapi:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Validate container starts successfully
+        run: |
+          # Run container directly without docker-compose (no GPU support required)
+          CONTAINER_ID=$(docker run -d \
+            -e HF_TOKEN=${{ secrets.HF_TOKEN }} \
+            -e WHISPER_MODEL=tiny \
+            -e DEFAULT_LANG=en \
+            -e DEVICE=cpu \
+            -e COMPUTE_TYPE=int8 \
+            -e LOG_LEVEL=INFO \
+            -e ENVIRONMENT=test \
+            -e DEV=false \
+            -e FILTER_WARNING=true \
+            -e DB_URL=sqlite:////tmp/test.db \
+            -p 8000:8000 \
+            whisperx-fastapi:latest)
+
+          echo "Started container: $CONTAINER_ID"
+
+          # Wait for application to be ready (max 60 seconds)
+          echo "Waiting for application to be ready..."
+          RETRY_COUNT=0
+          MAX_RETRIES=60
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            HTTP_CODE=$(docker exec "$CONTAINER_ID" curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health 2>&1 || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✓ Application is healthy and responding (HTTP $HTTP_CODE)"
+              break
+            fi
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -eq 10 ] || [ $RETRY_COUNT -eq 20 ] || [ $RETRY_COUNT -eq 30 ]; then
+              echo "  (Retry $RETRY_COUNT: HTTP response $HTTP_CODE - still waiting...)"
+            fi
+            if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+              echo "✗ Application failed to become ready after $MAX_RETRIES seconds (Last HTTP: $HTTP_CODE)"
+              echo "Container logs (last 50 lines):"
+              docker logs "$CONTAINER_ID" | tail -50
+              echo ""
+              echo "Debugging information:"
+              docker exec "$CONTAINER_ID" which curl || echo "  ✗ curl not found in PATH"
+              docker stop "$CONTAINER_ID" 2>/dev/null || true
+              docker rm "$CONTAINER_ID" 2>/dev/null || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          # Verify health endpoint returns expected response
+          HEALTH_RESPONSE=$(docker exec "$CONTAINER_ID" curl -s http://localhost:8000/health)
+          echo "Health endpoint response: $HEALTH_RESPONSE"
+
+          # Test other health endpoints
+          echo "Testing /health/live endpoint..."
+          LIVE_RESPONSE=$(docker exec "$CONTAINER_ID" curl -s http://localhost:8000/health/live)
+          echo "Live endpoint response: $LIVE_RESPONSE"
+
+          # Clean up
+          docker stop "$CONTAINER_ID" 2>/dev/null || true
+          docker rm "$CONTAINER_ID" 2>/dev/null || true
+          echo "✓ Container validation completed successfully"
       - name: Clean up Docker build cache
         run: |
           docker builder prune -f --filter "until=1h"
@@ -225,13 +291,13 @@ jobs:
           chmod +x sarif-to-markdown-table-linux
           cat trivy-results.sarif | ./sarif-to-markdown-table-linux > trivy-results.txt 2>/dev/null || cat trivy-results.sarif > trivy-results.txt
       - name: Upload Trivy scan results as artifact
-        uses: actions/upload-artifact@2848b2cda0e5190984587ec6bb1f36730ca78d50
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         if: always()
         with:
           name: trivy-results
           path: trivy-results.txt
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@16140ae1a102900babc80a33c44059580f687047
+        uses: github/codeql-action/upload-sarif@1b168cd39490f61582a9beae412bb7057a6b2c4e
         if: always()
         with:
           sarif_file: "trivy-results.sarif"
@@ -275,7 +341,7 @@ jobs:
     steps:
       - name: Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@5a70a1d133aebc31503dc07fb19f294cf18ff31c
+        uses: dependabot/fetch-metadata@fa6d7aee4f734d7f1a20fb075d01c7db6731009d
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
       - name: Merge the PR
@@ -293,7 +359,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: googleapis/release-please-action@e5c2aa4f6acd6194e00632c8f262cff67ae17873
+      - uses: googleapis/release-please-action@16a9c90856f42705d54a6fda1823352bdc62cf38
         id: release-please
         with:
           token: ${{ secrets.PAT_TOKEN }}
@@ -307,7 +373,7 @@ jobs:
           ref: ${{ fromJson(steps.release-please.outputs.pr).headBranchName }}
       - name: Setup uv
         if: ${{ steps.release-please.outputs.pr }}
-        uses: astral-sh/setup-uv@2ddd2b9cb38ad8efd50337e8ab201519a34c9f24
+        uses: astral-sh/setup-uv@85856786d1ce8acfbcc2f13a5f3fbd6b938f9f41
       - name: Update uv.lock
         if: ${{ steps.release-please.outputs.pr }}
         run: uv lock
